@@ -1,6 +1,6 @@
 name: figma_node
 description: figma node creator
-version: 1.0.2
+version: 1.0.3
 homepage: https://github.com/autistic-developer/figma_node
 
 environment:
