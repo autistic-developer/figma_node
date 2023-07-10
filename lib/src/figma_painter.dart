@@ -10,6 +10,7 @@ import 'package:vector_math/vector_math_64.dart' as mat;
 
 class FigmaPainter extends CustomPainter {
   final double rotation;
+  final Offset rotationOrigin;
   final Rect rect;
   Path path;
   final Path? strokePath;
@@ -53,6 +54,7 @@ class FigmaPainter extends CustomPainter {
   ];
   FigmaPainter({
     required this.rotation,
+    required this.rotationOrigin,
     required this.rect,
     required this.path,
     this.strokePath,
@@ -142,11 +144,11 @@ class FigmaPainter extends CustomPainter {
   }
 
   void _setRotationMatrix(Size size) {
-    rotationMatrix =
-        Matrix4.translation(mat.Vector3(size.width / 2, size.height / 2, 0.0));
+    rotationMatrix = Matrix4.translation(
+        mat.Vector3(rotationOrigin.dx, rotationOrigin.dy, 0.0));
     rotationMatrix.rotateZ(_degreesToRadians(rotation));
     rotationMatrix
-        .translate(mat.Vector3(-size.width / 2, -size.height / 2, 0.0));
+        .translate(mat.Vector3(-rotationOrigin.dx, -rotationOrigin.dy, 0.0));
   }
 
   void _offShederAndFilters() {

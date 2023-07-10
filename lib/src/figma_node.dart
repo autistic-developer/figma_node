@@ -27,6 +27,7 @@ class FigmaNode extends StatelessWidget {
       this.stackAlign = Alignment.center,
       this.stackClip = Clip.none,
       this.rotation = 0,
+      this.rotationOrigin,
       this.opacity = 1,
       required this.size,
       required String path,
@@ -54,6 +55,8 @@ class FigmaNode extends StatelessWidget {
             ? null
             : FigmaPainter(
                 rotation: rotation,
+                rotationOrigin:
+                    rotationOrigin ?? Offset(size.width / 2, size.height / 2),
                 rect: Offset.zero & size,
                 path: parseSvgPath(path),
                 fills: fills,
@@ -71,6 +74,7 @@ class FigmaNode extends StatelessWidget {
 
   final double opacity;
   final double rotation;
+  final Offset? rotationOrigin;
   final Size size;
   final BackgroundBlurEffect? backgroundBlur;
   final FigmaPainter? painter;
@@ -97,6 +101,9 @@ class FigmaNode extends StatelessWidget {
     if (backgroundBlur != null && backgroundBlur!.visible) {
       final sigma = convertRadiusToSigma(backgroundBlur!.blurRadius);
       bgBlur = Transform.rotate(
+        origin: rotationOrigin != null
+            ? rotationOrigin! - Offset(size.width / 2, size.height / 2)
+            : null,
         angle: _degreesToRadians(rotation),
         child: ClipPath(
           clipper: GlassClipper(path: _scalePath()),
