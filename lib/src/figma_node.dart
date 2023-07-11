@@ -22,8 +22,14 @@ class Effects {
 }
 
 class FigmaNode extends StatelessWidget {
+  static bool _defaultShouldRepaint(FigmaPainter painter) {
+    return false;
+  }
+
   FigmaNode(
       {super.key,
+      bool Function(FigmaPainter painter) shouldRepaintCall =
+          _defaultShouldRepaint,
       this.stackAlign = Alignment.center,
       this.stackClip = Clip.none,
       this.rotation = 0,
@@ -54,6 +60,7 @@ class FigmaNode extends StatelessWidget {
         painter = (fills == null && strokes == null)
             ? null
             : FigmaPainter(
+                shouldRepaintCall: shouldRepaintCall,
                 rotation: rotation,
                 rotationOrigin:
                     rotationOrigin ?? Offset(size.width / 2, size.height / 2),

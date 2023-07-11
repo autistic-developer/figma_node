@@ -24,7 +24,7 @@ class FigmaPainter extends CustomPainter {
   final List<InnerShadowEffect>? innerShadows;
   final List<DropShadowEffect>? dropShadows;
   final LayerBlurEffect? layerBlur;
-
+  final bool Function(FigmaPainter painter) shouldRepaintCall;
   late Path blackMatter;
   late Paint fillPaint;
   late Paint strokePaint;
@@ -53,6 +53,7 @@ class FigmaPainter extends CustomPainter {
     0,
   ];
   FigmaPainter({
+    required this.shouldRepaintCall,
     required this.rotation,
     required this.rotationOrigin,
     required this.rect,
@@ -140,7 +141,7 @@ class FigmaPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+    return shouldRepaintCall(oldDelegate as FigmaPainter);
   }
 
   void _setRotationMatrix(Size size) {
