@@ -12,7 +12,7 @@ class FigmaPainter extends CustomPainter {
   final double rotation;
   final Offset rotationOrigin;
   final Rect rect;
-  Path path;
+  final Path path;
   final Path? strokePath;
   final List<Fill>? fills;
   final List<Stroke>? strokes;
@@ -25,34 +25,7 @@ class FigmaPainter extends CustomPainter {
   final List<DropShadowEffect>? dropShadows;
   final LayerBlurEffect? layerBlur;
   final bool Function(FigmaPainter painter) shouldRepaintCall;
-  late Path blackMatter;
-  late Paint fillPaint;
-  late Paint strokePaint;
-  late Matrix4 rotationMatrix;
-  Path? strokeMask;
-  static final List<double> colorFilter = <double>[
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-  FigmaPainter({
+  const FigmaPainter({
     required this.shouldRepaintCall,
     required this.rotation,
     required this.rotationOrigin,
@@ -72,9 +45,9 @@ class FigmaPainter extends CustomPainter {
   });
   @override
   void paint(Canvas canvas, Size size) {
-    _scalePath(size);
-    _setStrokePaint();
-    _setFillPaint();
+    final (scaledPath, blackMatter) = _scalePath(size);
+    final (strokeMask, strokePaint) = _setStrokePaint(scaledPath);
+    final Paint fillPaint = Paint();
 
     //layer-blur open
     if (layerBlur != null && layerBlur!.visible && layerBlur!.blurRadius != 0) {
@@ -85,13 +58,13 @@ class FigmaPainter extends CustomPainter {
             ..imageFilter = ImageFilter.blur(sigmaX: sigma, sigmaY: sigma));
     }
 
-    _offShederAndFilters();
+    _offShederAndFilters(strokePaint, fillPaint);
     // drop-shadow
     if (dropShadows != null && dropShadows!.isNotEmpty) {
       for (DropShadowEffect dropShadow in dropShadows!) {
         if (dropShadow.visible &&
             (dropShadow.offset != Offset.zero && dropShadow.blurRadius != 0)) {
-          _applyDropShadowEffect(canvas, dropShadow);
+          _applyDropShadowEffect(canvas, dropShadow, blackMatter, fillPaint);
         }
       }
     }
@@ -100,19 +73,19 @@ class FigmaPainter extends CustomPainter {
     if (fills != null) {
       for (Fill fill in fills!) {
         if (fill.visible) {
-          _fillPath(canvas, fill);
+          _fillPath(canvas, fill, scaledPath, fillPaint);
         }
       }
     }
 
-    _offShederAndFilters();
+    _offShederAndFilters(strokePaint, fillPaint);
     // inner-shadow
     if (innerShadows != null && innerShadows!.isNotEmpty) {
       for (InnerShadowEffect innerShadow in innerShadows!) {
         if (innerShadow.visible &&
             (innerShadow.offset != Offset.zero &&
                 innerShadow.blurRadius != 0)) {
-          _applyInnerShadowEffect(canvas, innerShadow);
+          _applyInnerShadowEffect(canvas, innerShadow, blackMatter, fillPaint);
         }
       }
     }
@@ -121,11 +94,11 @@ class FigmaPainter extends CustomPainter {
     if (strokeWeight != 0 && strokes != null && strokes!.isNotEmpty) {
       if (strokeMask != null) {
         canvas.save();
-        canvas.clipPath(strokeMask!);
+        canvas.clipPath(strokeMask);
       }
       for (Stroke stroke in strokes!) {
         if (stroke.visible) {
-          _fillStroke(canvas, stroke);
+          _fillStroke(canvas, stroke, scaledPath, strokePaint);
         }
       }
       if (strokeMask != null) {
@@ -144,24 +117,24 @@ class FigmaPainter extends CustomPainter {
     return shouldRepaintCall(oldDelegate as FigmaPainter);
   }
 
-  void _setRotationMatrix(Size size) {
-    rotationMatrix = Matrix4.translation(
-        mat.Vector3(rotationOrigin.dx, rotationOrigin.dy, 0.0));
-    rotationMatrix.rotateZ(_degreesToRadians(rotation));
-    rotationMatrix
-        .translate(mat.Vector3(-rotationOrigin.dx, -rotationOrigin.dy, 0.0));
+  Matrix4 _setRotationMatrix(Size size) {
+    return Matrix4.translation(
+        mat.Vector3(rotationOrigin.dx, rotationOrigin.dy, 0.0))
+      ..rotateZ(_degreesToRadians(rotation))
+      ..translate(mat.Vector3(-rotationOrigin.dx, -rotationOrigin.dy, 0.0));
   }
 
-  void _offShederAndFilters() {
+  void _offShederAndFilters(Paint strokePaint, Paint fillPaint) {
     strokePaint.colorFilter = null;
     strokePaint.shader = null;
     fillPaint.colorFilter = null;
     fillPaint.shader = null;
   }
 
-  void _applyDropShadowEffect(Canvas canvas, DropShadowEffect dropShadow) {
+  void _applyDropShadowEffect(Canvas canvas, DropShadowEffect dropShadow,
+      Path blackMatter, Paint fillPaint) {
     canvas.saveLayer(null, Paint()..blendMode = dropShadow.blendMode);
-    _drawBlackMatter(canvas, Colors.black);
+    _drawBlackMatter(canvas, Colors.black, blackMatter, fillPaint);
 
     final double sigma = _convertRadiusToSigma(dropShadow.blurRadius);
 
@@ -172,7 +145,7 @@ class FigmaPainter extends CustomPainter {
       ..saveLayer(null, shadowPaint)
       ..translate(dropShadow.offset.dx, dropShadow.offset.dy);
 
-    _drawBlackMatter(canvas, Colors.black);
+    _drawBlackMatter(canvas, Colors.black, blackMatter, fillPaint);
 
     canvas.restore();
 
@@ -188,9 +161,10 @@ class FigmaPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _applyInnerShadowEffect(Canvas canvas, InnerShadowEffect innerShadow) {
+  void _applyInnerShadowEffect(Canvas canvas, InnerShadowEffect innerShadow,
+      Path blackMatter, Paint fillPaint) {
     canvas.saveLayer(null, Paint()..blendMode = innerShadow.blendMode);
-    _drawBlackMatter(canvas, innerShadow.color!);
+    _drawBlackMatter(canvas, innerShadow.color!, blackMatter, fillPaint);
 
     final double sigma = _convertRadiusToSigma(innerShadow.blurRadius);
     final shadowPaint = Paint()
@@ -201,13 +175,14 @@ class FigmaPainter extends CustomPainter {
       ..saveLayer(null, shadowPaint)
       ..translate(innerShadow.offset.dx, innerShadow.offset.dy);
 
-    _drawBlackMatter(canvas, Colors.black);
+    _drawBlackMatter(canvas, Colors.black, blackMatter, fillPaint);
 
     canvas.restore();
     canvas.restore();
   }
 
-  void _drawBlackMatter(Canvas canvas, Color color) {
+  void _drawBlackMatter(
+      Canvas canvas, Color color, Path blackMatter, Paint fillPaint) {
     canvas.drawPath(blackMatter, fillPaint..color = color);
   }
 
@@ -215,16 +190,16 @@ class FigmaPainter extends CustomPainter {
     return radius > 0 ? radius * 0.57735 + 0.5 : 0;
   }
 
-  void _setStrokePaint() {
-    strokePaint = Paint()..style = PaintingStyle.stroke;
+  (Path?, Paint) _setStrokePaint(Path scaledPath) {
+    Path? strokMask;
+    final strokePaint = Paint()..style = PaintingStyle.stroke;
     if (strokeWeight != 0) {
       strokePaint.strokeWidth = strokeWeight;
       if (strokeAlign != StrokeAlign.center) {
-        strokeMask = (strokeAlign == StrokeAlign.outside)
-            ? Path.combine(
-                PathOperation.difference, Path()..addRect(Rect.largest), path)
-            : path;
-
+        strokMask = (strokeAlign == StrokeAlign.outside)
+            ? Path.combine(PathOperation.difference,
+                Path()..addRect(Rect.largest), scaledPath)
+            : Path.from(scaledPath);
         strokePaint.strokeWidth *= 2.0;
       }
     }
@@ -237,35 +212,34 @@ class FigmaPainter extends CustomPainter {
     if (strokeMiterLimit != null) {
       strokePaint.strokeMiterLimit = strokeMiterLimit!;
     }
+    return (strokMask, strokePaint);
   }
 
-  void _setFillPaint() {
-    fillPaint = Paint();
-  }
-
-  void _scalePath(Size size) {
+  (Path, Path) _scalePath(Size size) {
     final double canvasWidth = size.width;
     final Rect pathBounds = path.getBounds();
 
     final double scaleX = canvasWidth / pathBounds.width;
 
     Matrix4 matrix = Matrix4.identity()..scale(scaleX, scaleX);
-    path = path.transform(matrix.storage);
-    if (fills != null || strokes != null) {
-      _setBlackMatter(pathBounds, canvasWidth, matrix);
-    }
+    Path scaledPath = path.transform(matrix.storage);
+    Path blackMatter =
+        _setBlackMatter(scaledPath, pathBounds, canvasWidth, matrix);
+
     if (rotation != 0) {
-      _setRotationMatrix(path.getBounds().size);
-      path = path.transform(rotationMatrix.storage);
+      scaledPath = scaledPath
+          .transform(_setRotationMatrix(scaledPath.getBounds().size).storage);
       _setRotationMatrix(blackMatter.getBounds().size);
-      blackMatter = blackMatter.transform(rotationMatrix.storage);
+      blackMatter = blackMatter
+          .transform(_setRotationMatrix(scaledPath.getBounds().size).storage);
     }
+    return (scaledPath, blackMatter);
   }
 
-  void _setBlackMatter(Rect pathBounds, double canvasWidth, Matrix4 matrix) {
+  Path _setBlackMatter(
+      Path scaledPath, Rect pathBounds, double canvasWidth, Matrix4 matrix) {
     if (strokeAlign == StrokeAlign.inside || strokeWeight == 0) {
-      blackMatter = path;
-      return;
+      return Path.from(scaledPath);
     }
     if (strokeAlign == StrokeAlign.outside) {
       final double scaleX = (canvasWidth + strokeWeight * 2) / pathBounds.width;
@@ -273,11 +247,12 @@ class FigmaPainter extends CustomPainter {
     }
     pathBounds = strokePath!.getBounds();
 
-    blackMatter = Path.combine(
-        PathOperation.union, path, strokePath!.transform(matrix.storage));
+    return Path.combine(
+        PathOperation.union, scaledPath, strokePath!.transform(matrix.storage));
   }
 
-  void _fillStroke(Canvas canvas, Stroke stroke) {
+  void _fillStroke(
+      Canvas canvas, Stroke stroke, Path scaledPath, Paint strokePaint) {
     if (stroke.blendMode != null) {
       canvas.saveLayer(null, Paint()..blendMode = stroke.blendMode!);
     }
@@ -286,12 +261,32 @@ class FigmaPainter extends CustomPainter {
     } else {
       strokePaint.shader = stroke.gradient!.createShader(rect);
       if (stroke.opacity != null) {
-        colorFilter[18] = stroke.opacity!;
-        strokePaint.colorFilter = ColorFilter.matrix(colorFilter);
+        strokePaint.colorFilter = ColorFilter.matrix([
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          stroke.opacity!,
+          0,
+        ]);
       }
     }
 
-    canvas.drawPath(path, strokePaint);
+    canvas.drawPath(scaledPath, strokePaint);
     if (stroke.blendMode != null) {
       canvas.restore();
     }
@@ -299,7 +294,7 @@ class FigmaPainter extends CustomPainter {
     strokePaint.colorFilter = null;
   }
 
-  void _fillPath(Canvas canvas, Fill fill) {
+  void _fillPath(Canvas canvas, Fill fill, Path scaledPath, Paint fillPaint) {
     if (fill.blendMode != null) {
       canvas.saveLayer(null, Paint()..blendMode = fill.blendMode!);
     }
@@ -308,12 +303,32 @@ class FigmaPainter extends CustomPainter {
     } else {
       fillPaint.shader = fill.gradient!.createShader(rect);
       if (fill.opacity != null) {
-        colorFilter[18] = fill.opacity!;
-        fillPaint.colorFilter = ColorFilter.matrix(colorFilter);
+        fillPaint.colorFilter = ColorFilter.matrix([
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          fill.opacity!,
+          0,
+        ]);
       }
     }
 
-    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(scaledPath, fillPaint);
     if (fill.blendMode != null) {
       canvas.restore();
     }
